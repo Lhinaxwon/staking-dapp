@@ -95,7 +95,7 @@ contract StakingTNT20 is ERC20, ERC721Holder, Ownable {
     function claimRewards(uint256 tokenId) external {
         require(ownerOfNFT[tokenId] == msg.sender, "You can't claim rewards because you are not the owner");
         _mint(msg.sender, calculateRewards(tokenId));
-        delete tokenStakedAtTimestamp[tokenId] = block.timestamp;
+        tokenStakedAtTimestamp[tokenId] = block.timestamp;
     }
 
     /**

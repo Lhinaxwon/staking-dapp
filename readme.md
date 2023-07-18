@@ -45,7 +45,7 @@ it's still in its alpha phase, so please use it for testing purposes only.
 
 After uploading an image for our NFT we create a json file and past in the following (imageURL should be replaced with 
 your image url):
-```
+```json
 {
     name: "Test Token",
     image: "imageURL"
@@ -63,4 +63,12 @@ After Deploying both contracts we are ready to look at the frontend and how to i
 browser.
 
 ## 2. Webapp
+In the following we will be looking at the specific code section in the frontend website that interact with the theta 
+blockchain. We won't be looking at the general react code.
+
+To follow along the best way is to clone the repository and run the app with:
+```shell
+cd frontend
+node run dev
+```
 ### Setup WalletConnect

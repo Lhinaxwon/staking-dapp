@@ -1,5 +1,7 @@
 # Demo: NFT Staking dApp
 
+![ExampleImage](/images/StakingDAppExample.png)
+
 In this dApp, I'll guide you on how to interact with the Theta blockchain. We'll explore a variety of technologies that 
 will simplify and expedite your development process on the Theta blockchain.
 

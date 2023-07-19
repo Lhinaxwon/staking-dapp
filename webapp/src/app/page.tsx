@@ -17,7 +17,6 @@ import { publicProvider } from 'wagmi/providers/public';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import '@rainbow-me/rainbowkit/styles.css';
 import { tnt721ABI, stakingTNT20ABI } from '@/ABI';
-import {write} from "fs";
 
 
 // const TNT20_CONTRACT = '0x644B6533038DA0Ee6c330f51A16940139bbbE50B'
@@ -78,7 +77,6 @@ const contractConfigTNT20  = {
 function UserNFT(token: {id: number, uri: string, img: string}) {
   const [isApproved, setIsApproved] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  console.log("Setup My NFT", token.id)
 
   const { config: approveConfig } = usePrepareContractWrite({
     address: TNT721_CONTRACT,
@@ -126,11 +124,10 @@ function UserNFT(token: {id: number, uri: string, img: string}) {
     enabled: false,
   });
 
-  const { data: approveData, write: writeApprove, isError: approveError } = useContractWrite(approveConfig);
-  const { data: stakeData, write: writeStake, isError: stakeError} = useContractWrite(stakeConfig);
+  const {  write: writeApprove, isError: approveError } = useContractWrite(approveConfig);
+  const {  write: writeStake, isError: stakeError} = useContractWrite(stakeConfig);
 
   useEffect(() => {
-    console.log("Error loading Approve/Stake")
     if(approveError) setIsLoading(false);
     if(stakeError) setIsLoading(false);
   }, [approveError, stakeError])
@@ -216,7 +213,7 @@ function UserStakedNFT(token: {id: number, uri: string, img: string}) {
   })
 
   useEffect(() => {
-    calculateRewards()
+    calculateRewards().catch(()=>{console.log("Error calculating Reward")})
   }, [])
 
   useContractEvent({
@@ -249,8 +246,8 @@ function UserStakedNFT(token: {id: number, uri: string, img: string}) {
     enabled: false,
   })
 
-  const { data: claimData, write: writeClaim, isError:claimError } = useContractWrite(claimConfig);
-  const { data: unstakeData, write: writeUnstake, isError:unstakeError  } = useContractWrite(unstakeConfig);
+  const { write: writeClaim, isError:claimError } = useContractWrite(claimConfig);
+  const { write: writeUnstake, isError:unstakeError  } = useContractWrite(unstakeConfig);
 
   useEffect(() => {
     if(claimError) setIsLoading(false);
@@ -325,7 +322,7 @@ function UserStakedNFT(token: {id: number, uri: string, img: string}) {
 function UserData({ address }: { address: string }) {
   const [myNFTs, setMyNFTs] = useState(0);
 
-  const { data, refetch, isError, isLoading } = useContractReads({
+  const { data, refetch } = useContractReads({
     contracts: [
       // @ts-ignore
       {
@@ -351,8 +348,8 @@ function UserData({ address }: { address: string }) {
     address: TNT20_CONTRACT,
     abi: stakingTNT20ABI,
     eventName: 'StakedNFT',
-    listener(log) {
-      refetch() // refresh page
+    listener() {
+      refetch().catch(() => {console.log("Error refreshing balance data")})
     },
   })
 
@@ -360,8 +357,8 @@ function UserData({ address }: { address: string }) {
     address: TNT20_CONTRACT,
     abi: stakingTNT20ABI,
     eventName: 'UnStakedNFT',
-    listener(log) {
-      refetch()
+    listener() {
+      refetch().catch(() => {console.log("Error refreshing balance data")})
     },
   })
 
@@ -448,7 +445,7 @@ function WalletNFTs({ amount, address }: { amount: number, address: string }) {
   };
 
   useEffect(() => {
-    fetchTokens();
+    fetchTokens().catch(() => {console.log("Error fetching token data")});
   }, [amount])
 
   return (

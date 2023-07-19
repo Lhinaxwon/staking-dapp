@@ -52,8 +52,8 @@ After uploading an image for our NFT we create a json file and past in the follo
 your image url):
 ```json
 {
-    name: "Test Token",
-    image: "imageURL"
+    "name": "Test Token",
+    "image": "imageURL"
 }
 ```
 Next upload the metadata file (json file).

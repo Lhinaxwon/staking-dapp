@@ -45,6 +45,15 @@ contract StakingTNT20 is ERC20, ERC721Holder, Ownable {
         nft = IERC721(_nft);
     }
 
+
+    // Event called when a new NFT gets staked
+    event StakedNFT(uint256 indexed tokenId, address indexed owner);
+    // Event called when an NFT gets unstaked
+    event UnStakedNFT(uint256 indexed tokenId, address indexed owner, uint256 reward);
+    // Event called when a reward is claimed from an staked NFT
+    event ClaimedReward(uint256 indexed tokenId, address indexed owner, uint256 reward);
+
+
     /**
      * @dev Public function called to stake a new NFT (token needs to be first approved so this contract can transfer
      * the token)
@@ -58,6 +67,8 @@ contract StakingTNT20 is ERC20, ERC721Holder, Ownable {
         totalNFTsStaked.increment();
         _addTokenToOwnerEnumeration(msg.sender, tokenId);
         stakedBalanceOf[msg.sender] += 1;
+
+        emit StakedNFT(tokenId, msg.sender);
     }
 
     /**
@@ -77,7 +88,8 @@ contract StakingTNT20 is ERC20, ERC721Holder, Ownable {
      */
     function unstake(uint256 tokenId) external {
         require(ownerOfNFT[tokenId] == msg.sender, "You can't unstake because you are not the owner");
-        _mint(msg.sender, calculateRewards(tokenId));
+        uint256 reward = calculateRewards(tokenId);
+        _mint(msg.sender, reward);
         nft.transferFrom(address(this), msg.sender, tokenId);
         delete ownerOfNFT[tokenId];
         delete tokenStakedAtTimestamp[tokenId];
@@ -85,6 +97,8 @@ contract StakingTNT20 is ERC20, ERC721Holder, Ownable {
         _removeTokenFromOwnerEnumeration(msg.sender, tokenId);
         stakedBalanceOf[msg.sender] -= 1;
         totalNFTsStaked.decrement();
+
+        emit UnStakedNFT(tokenId, msg.sender, reward);
     }
 
 
@@ -94,8 +108,10 @@ contract StakingTNT20 is ERC20, ERC721Holder, Ownable {
      */
     function claimRewards(uint256 tokenId) external {
         require(ownerOfNFT[tokenId] == msg.sender, "You can't claim rewards because you are not the owner");
-        _mint(msg.sender, calculateRewards(tokenId));
+        uint256 reward = calculateRewards(tokenId);
+        _mint(msg.sender, reward);
         tokenStakedAtTimestamp[tokenId] = block.timestamp;
+        emit ClaimedReward(tokenId, msg.sender, reward);
     }
 
     /**

@@ -30,6 +30,11 @@ The following functions where added:
 - **stakedTokenOfOwnerByIndex(uint256 index)**: returns the tokenId and the rewards for an NFT.
 - **getTotalNFTsStaked()**: returns how many NFTs are staked in total.
 
+and we also added the following events:
+- **event StakedNFT(uint256 indexed tokenId, address indexed owner)**
+- **event UnStakedNFT(uint256 indexed tokenId, address indexed owner, uint256 reward)**
+- **event ClaimedReward(uint256 indexed tokenId, address indexed owner, uint256 reward)**
+
 The TNT721 token smart contract, which holds the NFTs, 
 needs a link to a metadata file each time we mint a new NFT token.
 
@@ -71,4 +76,50 @@ To follow along the best way is to clone the repository and run the app with:
 cd frontend
 node run dev
 ```
+Getting started you need to replace these const variables in the code:
+- const TNT20_CONTRACT: your TNT20 token address
+- const TNT721_CONTRACT: your TNT721 token address
+- const projectID: your wallet connect project id
+- const tokenSymbol: TNT20 token Symbole
+
+Probably you are asking yourself what the wallet connect project id is, for that head over to the 
+[wallet connect website](https://cloud.walletconnect.com/sign-in). If you don't have a account yet, you have to sign up,
+and then you can create a new project. After registering your project you will get the needed project id.
+
 ### Setup WalletConnect
+Now that we have everything ready, lets look at the Theta specific code in our dApp.
+```javascript
+const theta = {
+  id: 361,
+  name: 'Theta Mainnet',
+  network: 'theta',
+  nativeCurrency: {
+    decimals: 18,
+    name: 'TFUEL',
+    symbol: 'TFUEL',
+  },
+  rpcUrls: {
+    public: { http: ['https://eth-rpc-api.thetatoken.org'] },
+    default: { http: ['https://eth-rpc-api.thetatoken.org'] },
+  },
+  blockExplorers: {
+    etherscan: { name: 'Theta Explorer', url: 'https://explorer.thetatoken.org/' },
+    default: { name: 'Theta Explorer', url: 'https://explorer.thetatoken.org/' },
+  },
+};
+```
+this is the most important part, here we create a new network with all the details:
+- **id:** is the network chain id
+- **name:** blockchain name
+- **network:** network name
+- **nativeCurrency:** TFuel as this is the currency you pay gas fees on Theta.
+- **rpcUrls:** we used the public rpc endpoints, they have a limit on requests per minute (you can also use your own or from a provider).
+- **blockExplorers:** we use the official theta blockchain explorer.
+
+finally we will need to register the network with wagmi:
+```javascript
+const { chains, publicClient } = configureChains([theta], [publicProvider()]);
+```
+If you want to use the theta test chain you can check for the chain specific details in the [documentation](https://docs.thetatoken.org/docs/web3-stack-metamask).
+
+For more info how to use the wagmi library check [here](https://wagmi.sh/)

@@ -17,11 +17,14 @@ import { publicProvider } from 'wagmi/providers/public';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import '@rainbow-me/rainbowkit/styles.css';
 import { tnt721ABI, stakingTNT20ABI } from '@/ABI';
+import {write} from "fs";
 
 
-const TNT20_CONTRACT = '0x644B6533038DA0Ee6c330f51A16940139bbbE50B'
+// const TNT20_CONTRACT = '0x644B6533038DA0Ee6c330f51A16940139bbbE50B'
+const TNT20_CONTRACT = '0xD40905FD18c7ACf16C9eBD80Fd751C37a3d3ea63';
 const TNT721_CONTRACT = '0x045eE648e4BBAb1b1bcBe95B60e76C9A8143488f';
-const projectID = 'dd478956ed8fe16445b6b8690dd45f06';
+const projectID = 'projectID';
+const tokenSymbol = 'RWD'
 
 const theta = {
   id: 361,
@@ -73,26 +76,16 @@ const contractConfigTNT20  = {
 
 // Shows NFTs that are in the Users Wallet
 function UserNFT(token: {id: number, uri: string, img: string}) {
-
   const [isApproved, setIsApproved] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  console.log("Setup My NFT", token.id)
 
   const { config: approveConfig } = usePrepareContractWrite({
     address: TNT721_CONTRACT,
     abi: tnt721ABI,
     functionName: 'approve',
     args: [TNT20_CONTRACT,token.id],
-    onSuccess(data) {
-      if(data.result) {
-        console.log(data.result)
-        setIsApproved(true);
-        setIsLoading(false);
-      }
-    },
-    onError() {
-      setIsApproved(false);
-      setIsLoading(false);
-    }
+    enabled: false,
   });
 
   useContractEvent({
@@ -101,32 +94,46 @@ function UserNFT(token: {id: number, uri: string, img: string}) {
     eventName: 'approved',
     listener(log) {
       // console.log(log)
-      setIsApproved(true);
-      setIsLoading(false);
+      if(Number(log[0].topics[3]) == token.id) {
+        setIsApproved(true);
+        setIsLoading(false);
+      }
     },
   })
 
-  // useContractEvent({
-  //   address: TNT721_CONTRACT,
-  //   abi: tnt721ABI,
-  //   eventName: 'approved',
-  //   listener(log) {
-  //     // console.log(log)
-  //     setIsApproved(true);
-  //     setIsLoading(false);
-  //   },
-  // })
+  const { refetch: fetchIsApproved } = useContractRead({
+    address: TNT721_CONTRACT,
+    abi: tnt721ABI,
+    functionName: 'getApproved',
+    args: [token.id],
+    enabled: false,
+    onSuccess(data) {
+      if(data == TNT20_CONTRACT) {
+        setIsApproved(true);
+        setIsLoading(false);
+      } else {
+        writeApprove?.()
+      }
+    },
+    // watch: true,
+  })
 
   const { config: stakeConfig } = usePrepareContractWrite({
     address: TNT20_CONTRACT,
     abi: stakingTNT20ABI,
     functionName: 'stake',
-    args: [token.id]
+    args: [token.id],
+    enabled: false,
   });
 
-  const { data: approveData, write: writeApprove } = useContractWrite(approveConfig);
-  const { data: stakeData, write: writeStake } = useContractWrite(stakeConfig);
+  const { data: approveData, write: writeApprove, isError: approveError } = useContractWrite(approveConfig);
+  const { data: stakeData, write: writeStake, isError: stakeError} = useContractWrite(stakeConfig);
 
+  useEffect(() => {
+    console.log("Error loading Approve/Stake")
+    if(approveError) setIsLoading(false);
+    if(stakeError) setIsLoading(false);
+  }, [approveError, stakeError])
 
   return (
       <div
@@ -158,14 +165,14 @@ function UserNFT(token: {id: number, uri: string, img: string}) {
             <div className="d-flex justify-content-end align-items-center" style={{ height: '50px' }}>
               {isLoading ?
                   (
-                      <div className="d-flex justify-content-center align-items-center" style={{ height: '50px', minWidth: '150px', marginRight: '10px' }}>
+                      <div className="d-flex justify-content-center align-items-center" style={{ height: '50px', marginRight: '30px' }}>
                         <div className="spinner-border" role="status">
                           <span className="sr-only"></span>
                         </div>
                       </div>
                   ):
                   isApproved ? (
-                          <div className="d-flex justify-content-around align-items-center" style={{ height: '50px', minWidth: '150px', marginRight: '10px' }}>
+                          <div className="d-flex align-items-center" style={{ height: '50px', marginRight: '5px' }}>
                             <button className="btn btn-secondary" type="button" style={{ marginRight: '10px' }} onClick={() =>{
                               setIsLoading(true);
                               writeStake?.()
@@ -174,10 +181,11 @@ function UserNFT(token: {id: number, uri: string, img: string}) {
                             </button>
                           </div>
                       ) : (
-                      <div className="d-flex justify-content-around align-items-center" style={{ height: '50px', minWidth: '150px', marginRight: '10px' }}>
+                      <div className="d-flex align-items-center" style={{ height: '50px', marginRight: '5px' }}>
                         <button className="btn btn-secondary" type="button" style={{ marginRight: '0px' }} onClick={() => {
                           setIsLoading(true);
-                          writeApprove?.()
+                          // writeApprove?.();
+                          fetchIsApproved?.()
                         }}>
                           Approve
                         </button>
@@ -193,37 +201,61 @@ function UserNFT(token: {id: number, uri: string, img: string}) {
 
 function UserStakedNFT(token: {id: number, uri: string, img: string}) {
   const [tokenReward, setTokenReward] = useState(0);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const { data, isError } = useContractRead({
+  // console.log("Setup Staked NFT", token.id)
+  const {refetch: calculateRewards} = useContractRead({
     address: TNT20_CONTRACT,
     abi: stakingTNT20ABI,
     functionName: 'calculateRewards',
     args: [token.id],
-    watch: true,
+    enabled: false,
+    onSuccess(data) {
+      setTokenReward(Number((data ? BigInt(data.toString()) : BigInt('0')) / BigInt('10000000000000000'))/100);
+    }
   })
 
   useEffect(() => {
-    console.log(data)
-    setTokenReward(Number((data ? BigInt(data.toString()) : BigInt('0')) / BigInt('10000000000000000'))/100);
-  }, []);
+    calculateRewards()
+  }, [])
+
+  useContractEvent({
+    address: TNT20_CONTRACT,
+    abi: stakingTNT20ABI,
+    eventName: 'ClaimedReward',
+    listener(log) {
+      // console.log(log)
+      if(Number(log[0].topics[1]) == token.id) {
+        // console.log("Event ClaimedReward")
+        setIsLoading(false);
+        setTokenReward(0)
+      }
+    },
+  })
 
   const { config: claimConfig } = usePrepareContractWrite({
     address: TNT20_CONTRACT,
     abi: stakingTNT20ABI,
     functionName: 'claimRewards',
-    args: [token.id]
+    args: [token.id],
+    enabled: false,
   })
 
   const { config: unstakeConfig } = usePrepareContractWrite({
     address: TNT20_CONTRACT,
     abi: stakingTNT20ABI,
     functionName: 'unstake',
-    args: [token.id]
+    args: [token.id],
+    enabled: false,
   })
 
-  const { data: claimData, isLoading: isLoadingClaim, write: writeClaim } = useContractWrite(claimConfig);
-  const { data: unstakeData, isLoading: isLoadingUnstake, write: writeUnstake } = useContractWrite(unstakeConfig);
+  const { data: claimData, write: writeClaim, isError:claimError } = useContractWrite(claimConfig);
+  const { data: unstakeData, write: writeUnstake, isError:unstakeError  } = useContractWrite(unstakeConfig);
 
+  useEffect(() => {
+    if(claimError) setIsLoading(false);
+    if(unstakeError) setIsLoading(false);
+  }, [claimError, unstakeError])
 
   return (
       <div
@@ -254,12 +286,12 @@ function UserStakedNFT(token: {id: number, uri: string, img: string}) {
           <div className="col-xl-3">
             <div className="d-flex justify-content-start align-items-center" style={{ height: '50px' }}>
               <p className="text-center" style={{ marginBottom: '0px' }}>
-                {tokenReward} TEST
+                {tokenReward} {tokenSymbol}
               </p>
             </div>
           </div>
           <div className="col order-last" style={{ minWidth: '160px' }}>
-            {isLoadingClaim || isLoadingUnstake ?
+            {isLoading ?
                 (
                     <div className="d-flex justify-content-center align-items-center" style={{ height: '50px', minWidth: '150px', marginRight: '10px' }}>
                       <div className="spinner-border" role="status">
@@ -269,10 +301,16 @@ function UserStakedNFT(token: {id: number, uri: string, img: string}) {
                 ):
                 (
                     <div className="d-flex justify-content-around align-items-center" style={{ height: '50px', minWidth: '150px', marginRight: '10px' }}>
-                      <button className="btn btn-secondary" type="button" style={{ marginRight: '2px' }} onClick={() =>writeClaim?.()}>
+                      <button className="btn btn-secondary" type="button" style={{ marginRight: '2px' }} onClick={() => {
+                        setIsLoading(true);
+                        writeClaim?.()
+                      }}>
                         Claim
                       </button>
-                      <button className="btn btn-secondary" type="button" style={{ marginLeft: '2px' }} onClick={() => {writeUnstake?.()}}>
+                      <button className="btn btn-secondary" type="button" style={{ marginLeft: '2px' }} onClick={() => {
+                        setIsLoading(true);
+                        writeUnstake?.()
+                      }}>
                         Unstake
                       </button>
                     </div>
@@ -286,11 +324,8 @@ function UserStakedNFT(token: {id: number, uri: string, img: string}) {
 
 function UserData({ address }: { address: string }) {
   const [myNFTs, setMyNFTs] = useState(0);
-  const [myTokens, setMyTokens] = useState<{ id: number; uri: string; img: string; }[]>([]);
-  const [userStakedTokens, setUserStakedTokens] = useState<{ id: number; uri: string; img: string; }[]>([]);
 
-
-  const { data, isError, isLoading } = useContractReads({
+  const { data, refetch, isError, isLoading } = useContractReads({
     contracts: [
       // @ts-ignore
       {
@@ -305,11 +340,55 @@ function UserData({ address }: { address: string }) {
         args: [address],
       },
     ],
-    watch: true,
+    onSuccess(data) {
+      // console.log(data)
+      setMyNFTs(parseInt(`${data ? data[0].result : 0}`));
+    }
+    // watch: true,
   })
+
+  useContractEvent({
+    address: TNT20_CONTRACT,
+    abi: stakingTNT20ABI,
+    eventName: 'StakedNFT',
+    listener(log) {
+      refetch() // refresh page
+    },
+  })
+
+  useContractEvent({
+    address: TNT20_CONTRACT,
+    abi: stakingTNT20ABI,
+    eventName: 'UnStakedNFT',
+    listener(log) {
+      refetch()
+    },
+  })
+
+  return (
+      <><h6 className="text-center" style={{ paddingBottom: '10px', color: 'gray' }}>
+        My number of NFTs staked: {myNFTs}
+      </h6>
+        <div style={{ background: '#626262', height: '1px' }}></div>
+        <div className="container">
+          <div className="row" style={{ paddingBottom: '10px' }}>
+            {address && <StakedNFTs amount={Number(data && data[0].result ? Number(data[0].result) : 0)} address={address}></StakedNFTs>}
+            {address && <WalletNFTs amount={Number(data && data[1].result ? Number(data[1].result) : 0)} address={address}></WalletNFTs>}
+          </div>
+        </div></>
+  );
+}
+
+
+function WalletNFTs({ amount, address }: { amount: number, address: string }) {
+  const [myTokensData, setMyTokensData] = useState<{ id: number; uri: string; img: string; }[]>([]);
+
+  useEffect(() => {
+    setMyTokensData([]);
+  }, [])
+
   let contracts = [];
-  let ownerAmount: number = data && data[1].result ? Number(data[1].result) : 0;
-  for(let i = 0; i<ownerAmount; i++) {
+  for(let i = 0; i<amount; i++) {
     contracts.push({
       ...contractConfigTNT721,
       functionName: 'tokenOfOwnerByIndex',
@@ -317,11 +396,9 @@ function UserData({ address }: { address: string }) {
     })
   }
 
-
   const { data: tokenIds } = useContractReads({
     // @ts-ignore
     contracts: contracts,
-    watch: true,
   });
 
   contracts = [];
@@ -350,10 +427,49 @@ function UserData({ address }: { address: string }) {
       })
     }
   }
+  const fetchTokens = async () => {
+    try {
+      const updatedTokens = await Promise.all(
+          tokens.map(async (token) => {
+            const uriResponse = await fetch(token.uri);
+            const uriData = await uriResponse.json();
+            const imageUrl = uriData.image;
+            return {
+              id: token.id,
+              uri: token.uri,
+              img: imageUrl,
+            };
+          })
+      );
+      setMyTokensData(updatedTokens);
+    } catch (error) {
+      console.error('Error fetching tokens:', error);
+    }
+  };
 
-  contracts = [];
-  let ownerStakedAmount: number = data && data[0].result ? Number(data[0].result) : 0;
-  for(let i = 0; i<ownerStakedAmount; i++) {
+  useEffect(() => {
+    fetchTokens();
+  }, [amount])
+
+  return (
+    <div className="col-md-6">
+      <h3 style={{ paddingLeft: '0px', paddingTop: '20px' }}>NFTs in your Wallet:</h3>
+      {myTokensData.map((token: {id: number, uri: string, img: string}) => (
+          <UserNFT key={token.id} id={token.id} uri={token.uri} img={token.img} />
+      ))}
+    </div>
+  );
+}
+
+function StakedNFTs({ amount, address }: { amount: number, address: string }) {
+  const [userStakedTokensData, setUserStakedTokensData] = useState<{ id: number; uri: string; img: string; }[]>([]);
+
+  useEffect(() => {
+    setUserStakedTokensData([]);
+  }, [])
+
+  let contracts = [];
+  for(let i = 0; i<amount; i++) {
     contracts.push({
       ...contractConfigTNT20,
       functionName: 'stakedTokenOfOwnerByIndex',
@@ -364,7 +480,6 @@ function UserData({ address }: { address: string }) {
   const { data: stakedTokenIds } = useContractReads({
     // @ts-ignore
     contracts: contracts,
-    watch: true,
   })
 
   contracts = [];
@@ -394,78 +509,44 @@ function UserData({ address }: { address: string }) {
     }
   }
 
+  const fetchStakedTokens = async () => {
+    try {
+      const updatedTokens: {
+        id: number,
+        uri: string,
+        img: string,
+      }[] = await Promise.all(
+          stakedTokens.map(async (token) => {
+            const uriResponse = await fetch(token.uri);
+            const uriData = await uriResponse.json();
+            const imageUrl = uriData.image;
+            return {
+              id: token.id,
+              uri: token.uri,
+              img: imageUrl,
+            };
+          })
+      );
+      setUserStakedTokensData(updatedTokens);
+    } catch (error) {
+      console.error('Error fetching tokens:', error);
+    }
+  };
 
-  useEffect(()=>{
-    const fetchTokens = async () => {
-      try {
-        const updatedTokens = await Promise.all(
-            tokens.map(async (token) => {
-              const uriResponse = await fetch(token.uri);
-              const uriData = await uriResponse.json();
-              const imageUrl = uriData.image;
-              return {
-                id: token.id,
-                uri: token.uri,
-                img: imageUrl,
-              };
-            })
-        );
-        setMyTokens(updatedTokens);
-      } catch (error) {
-        console.error('Error fetching tokens:', error);
-      }
-    };
-    const fetchStakedTokens = async () => {
-      try {
-        const updatedTokens: {
-          id: number,
-          uri: string,
-          img: string,
-        }[] = await Promise.all(
-            stakedTokens.map(async (token) => {
-              const uriResponse = await fetch(token.uri);
-              const uriData = await uriResponse.json();
-              const imageUrl = uriData.image;
-              return {
-                id: token.id,
-                uri: token.uri,
-                img: imageUrl,
-              };
-            })
-        );
-        setUserStakedTokens(updatedTokens);
-      } catch (error) {
-        console.error('Error fetching tokens:', error);
-      }
-    };
-    fetchTokens();
+  useEffect(() => {
     fetchStakedTokens();
-    setMyNFTs(parseInt(`${data ? data[0].result : 0}`));
-  }, [address])
+  }, [amount])
 
   return (
-      <><h6 className="text-center" style={{ paddingBottom: '10px', color: 'gray' }}>
-          My number of NFTs staked: {myNFTs}
-        </h6>
-        <div style={{ background: '#626262', height: '1px' }}></div>
-        <div className="container">
-          <div className="row" style={{ paddingBottom: '10px' }}>
-            <div className="col-md-6">
-              <h3 style={{ paddingLeft: '0px', paddingTop: '20px' }}>Your Staked NFTs:</h3>
-              {userStakedTokens.map((token: {id: number, uri: string, img: string}) => (
-                  <UserStakedNFT key={token.id} id={token.id} uri={token.uri} img={token.img} />
-              ))}
-            </div>
-            <div className="col-md-6">
-              <h3 style={{ paddingLeft: '0px', paddingTop: '20px' }}>NFTs in your Wallet:</h3>
-              {myTokens.map((token: {id: number, uri: string, img: string}) => (
-                  <UserNFT key={token.id} id={token.id} uri={token.uri} img={token.img} />
-              ))}
-            </div>
-          </div>
-        </div></>
+    <div className="col-md-6">
+      <h3 style={{ paddingLeft: '0px', paddingTop: '20px' }}>Your Staked NFTs:</h3>
+      {userStakedTokensData.map((token: {id: number, uri: string, img: string}) => (
+          <UserStakedNFT key={token.id} id={token.id} uri={token.uri} img={token.img} />
+      ))}
+    </div>
   );
 }
+
 
 function YourApp() {
   const [totalNFTs, setTotalNFTs] = useState(0);
@@ -473,61 +554,62 @@ function YourApp() {
   const { address } = useAccount();
   const [allTokens, setAllTokens] = useState(0);
 
-  const { data, isError } = useContractRead({
-    address: TNT20_CONTRACT,
-    abi: stakingTNT20ABI,
-    functionName: 'totalSupply',
-    onSuccess(data) {
-      setAllTokens(Number((data ? BigInt(data.toString()) : BigInt('0')) / BigInt('10000000000000000'))/100)
-    },
-    watch: true,
-  })
-
-  const { data: data1 } = useContractRead({
-    address: TNT20_CONTRACT,
-    abi: stakingTNT20ABI,
-    functionName: 'totalNFTsStaked',
-    onSuccess(data) {
-      setTotalNFTs(Number(data ? BigInt(data.toString()) : BigInt('0')))
-    },
+  const { data, refetch } = useContractReads({
+    contracts: [
+      // @ts-ignore
+      {
+        ...contractConfigTNT20,
+        functionName: 'totalSupply',
+      },
+      // @ts-ignore
+      {
+        ...contractConfigTNT20,
+        functionName: 'totalNFTsStaked',
+      },
+    ],
     watch: true,
   })
 
   useEffect(() => {
+    if(data) {
+      setAllTokens(Number((data[0].result ? BigInt(data[0].result.toString()) : BigInt('0')) / BigInt('10000000000000000'))/100)
+      setTotalNFTs(Number(data[1].result ? BigInt(data[1].result.toString()) : BigInt('0')))
+    }
+  }, [data]);
+
+  useEffect(() => {
     if(address) {
       setConnected(true)
+      refetch()
     } else {
       setConnected(false)
     }
   }, [address]);
 
   return (
-      <WagmiConfig config={wagmiConfig}>
-        <RainbowKitProvider chains={chains} initialChain={361}>
-          <div>
-            <nav className="navbar navbar-expand-lg navbar-light bg-light justify-content-between">
-              <a className="navbar-brand" href="#" style={{ paddingLeft: '10px' }}>
-                Demo Staking dApp
-              </a>
-              <div style={{ paddingRight: '10px' }}>
-                <ConnectButton />
-              </div>
-            </nav>
-            <section style={{ width: '100%', height: '100vh' }}>
-              <div style={{ background: '#626262', height: '1px' }}></div>
-              <h1 className="text-center" style={{ paddingTop: '20px' }}>
-                TNT20 Token current Supply
-              </h1>
-              <h2 className="text-center">{allTokens} TEST</h2>
-              <h6 className="text-center" style={{ color: 'gray' }}>
-                Total number of NFTs staked: {totalNFTs}
-              </h6>
-              {connected && <UserData address={address ? address.toString() : '' } />}
-              <div style={{ background: '#626262', height: '1px' }}></div>
-            </section>
-          </div>
-        </RainbowKitProvider>
-      </WagmiConfig>
+    <div>
+      <nav className="navbar navbar-expand-lg navbar-light bg-light justify-content-between">
+        <a className="navbar-brand" href="#" style={{ paddingLeft: '10px' }}>
+          Demo Staking dApp
+        </a>
+        <div style={{ paddingRight: '10px' }}>
+          <ConnectButton />
+        </div>
+      </nav>
+      <section style={{ width: '100%', height: '100vh' }}>
+        <div style={{ background: '#626262', height: '1px' }}></div>
+        <h1 className="text-center" style={{ paddingTop: '20px' }}>
+          TNT20 Token current Supply
+        </h1>
+        <h2 className="text-center">{allTokens} {tokenSymbol}</h2>
+        <div style={{ background: '#626262', height: '1px' }}></div>
+        <h6 className="text-center" style={{ color: 'gray', paddingTop: '20px' }}>
+          Total number of NFTs staked: {totalNFTs}
+        </h6>
+        {connected && <UserData address={address ? address.toString() : '' } />}
+        <div style={{ background: '#626262', height: '1px' }}></div>
+      </section>
+    </div>
   );
 }
 

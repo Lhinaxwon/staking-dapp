@@ -75,8 +75,12 @@ blockchain. We won't be looking at the general react code.
 
 To follow along the best way is to clone the repository and run the app with:
 ```shell
-cd frontend
-node run dev
+cd webapp
+npm run dev
+# or
+yarn dev
+# or
+pnpm dev
 ```
 Getting started you need to replace these const variables in the code:
 - const TNT20_CONTRACT: your TNT20 token address
